@@ -78,14 +78,22 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
             body: jsonEncode(form),
           ));
 
+    // print("handleSubmit: status=${res.statusCode}, body=${res.body}");
+
     if (res.statusCode == 200 || res.statusCode == 201) {
+      if (!mounted) return;
       resetForm();
       fetchAll();
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: ${res.body}')));
     }
   }
 
   Future<void> handleDelete(String id) async {
-    final confirmed = await showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Konfirmasi"),
@@ -105,7 +113,16 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
 
     if (confirmed == true) {
       final res = await http.delete(Uri.parse('$baseUrl/api/judul/$id'));
-      if (res.statusCode == 200) fetchAll();
+      // print("handleDelete: status=${res.statusCode}, body=${res.body}");
+
+      if (res.statusCode == 200) {
+        fetchAll();
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal hapus: ${res.body}')));
+      }
     }
   }
 
@@ -423,12 +440,14 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
     String idField,
     String labelField,
   ) {
+    String? selectedValue = form[field]?.toString();
+    bool isValidValue = list.any((item) => item[idField] == selectedValue);
+    if (!isValidValue) selectedValue = null;
+
     return SizedBox(
       width: 180,
       child: DropdownButtonFormField<String>(
-        value: form[field]?.toString().isEmpty ?? true
-            ? null
-            : form[field]?.toString(),
+        value: selectedValue,
         items: list.map<DropdownMenuItem<String>>((item) {
           return DropdownMenuItem(
             value: item[idField],

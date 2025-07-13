@@ -183,7 +183,7 @@ exports.create = (req, res) => {
   });
 };
 
-// ✅ Update judul
+// Update judul
 exports.update = (req, res) => {
   const allowedFields = [
     "nama_topik",
@@ -204,8 +204,62 @@ exports.update = (req, res) => {
   });
 
   Judul.update(req.params.id, dataToUpdate, (err) => {
-    if (err) return res.status(500).json(err);
+    if (err) {
+      console.error("❌ Update error:", err);
+      return res.status(500).json({ error: err.message || err });
+    }
     res.json({ msg: "Judul berhasil diupdate" });
+  });
+};
+
+// Hapus judul
+exports.remove = (req, res) => {
+  Judul.remove(req.params.id, (err) => {
+    if (err) {
+      console.error("❌ Remove error:", err);
+      return res.status(500).json({ error: err.message || err });
+    }
+    res.json({ msg: "Judul berhasil dihapus" });
+  });
+};
+
+// Update judul
+exports.update = (req, res) => {
+  const allowedFields = [
+    "nama_topik",
+    "judul_ta",
+    "nim",
+    "prodi_id",
+    "dosen_pembimbing",
+    "dosen_penguji",
+    "dosen_penguji2",
+    "tahun",
+  ];
+
+  const dataToUpdate = {};
+  allowedFields.forEach((key) => {
+    if (req.body[key] !== undefined) {
+      dataToUpdate[key] = req.body[key];
+    }
+  });
+
+  Judul.update(req.params.id, dataToUpdate, (err) => {
+    if (err) {
+      console.error("❌ Update error:", err);
+      return res.status(500).json({ error: err.message || err });
+    }
+    res.json({ msg: "Judul berhasil diupdate" });
+  });
+};
+
+// Hapus judul
+exports.remove = (req, res) => {
+  Judul.remove(req.params.id, (err) => {
+    if (err) {
+      console.error("❌ Remove error:", err);
+      return res.status(500).json({ error: err.message || err });
+    }
+    res.json({ msg: "Judul berhasil dihapus" });
   });
 };
 

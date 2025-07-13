@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../dosen/topik_card.dart'; // ✅ gunakan TopikCard yang sudah ada
-import '../../constants/env.dart'; // pastikan baseUrl di sini
+import '../../constants/env.dart';
 
 class AdminTopikPage extends StatefulWidget {
   const AdminTopikPage({super.key});
@@ -13,31 +12,50 @@ class AdminTopikPage extends StatefulWidget {
 }
 
 class _AdminTopikPageState extends State<AdminTopikPage> {
-  List<dynamic> topikList = [];
+  List<String> daftarTopik = [];
   bool loading = true;
 
   @override
   void initState() {
     super.initState();
-    fetchTopik();
+    fetchTopikFromDashboardStats();
   }
 
-  Future<void> fetchTopik() async {
+  Future<void> fetchTopikFromDashboardStats() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/topik'));
+      final res = await http.get(Uri.parse('$baseUrl/api/dashboard/stats'));
+
       if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
         setState(() {
-          topikList = jsonDecode(res.body);
+          daftarTopik = List<String>.from(data['daftar_topik'] ?? []);
           loading = false;
         });
       } else {
+        debugPrint("Gagal ambil data: ${res.statusCode}");
         setState(() => loading = false);
-        debugPrint("Gagal ambil topik, code: ${res.statusCode}");
       }
     } catch (e) {
-      debugPrint('Error fetchTopik: $e');
+      debugPrint("Error: $e");
       setState(() => loading = false);
     }
+  }
+
+  Widget buildTopikCard(String namaTopik) {
+    return Card(
+      elevation: 6,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      color: Colors.deepPurple.withAlpha(25), // ✅ fix warning deprecated
+      child: ListTile(
+        leading: const Icon(Icons.topic, color: Colors.deepPurple),
+        title: Text(
+          namaTopik,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Colors.deepPurple),
+      ),
+    );
   }
 
   @override
@@ -46,17 +64,12 @@ class _AdminTopikPageState extends State<AdminTopikPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (topikList.isEmpty) {
-      return const Center(child: Text("Belum ada data topik."));
+    if (daftarTopik.isEmpty) {
+      return const Center(child: Text("Belum ada topik yang tersedia."));
     }
 
     return ListView(
-      children: topikList.map((topik) {
-        return TopikCard(
-          idTopik: topik['id_topik'].toString(),
-          namaTopik: topik['nama_topik'],
-        );
-      }).toList(),
+      children: daftarTopik.map((topik) => buildTopikCard(topik)).toList(),
     );
   }
 }

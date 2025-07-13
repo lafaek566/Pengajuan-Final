@@ -6,6 +6,7 @@ exports.getAll = (result) => {
     SELECT d.*, p.nama_prodi 
     FROM dosen d
     LEFT JOIN prodi p ON d.id_prodi = p.id_prodi
+    WHERE d.is_deleted = FALSE
   `;
   db.query(query, (err, res) => {
     if (err) return result(err);
@@ -36,8 +37,12 @@ exports.update = (id, data, result) => {
 
 // Hapus dosen
 exports.remove = (id, result) => {
-  db.query("DELETE FROM dosen WHERE id_dosen = ?", [id], (err, res) => {
-    if (err) return result(err);
-    result(null, res);
-  });
+  db.query(
+    "UPDATE dosen SET is_deleted = TRUE WHERE id_dosen = ?",
+    [id],
+    (err, res) => {
+      if (err) return result(err);
+      result(null, res);
+    }
+  );
 };

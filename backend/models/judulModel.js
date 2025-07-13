@@ -59,6 +59,7 @@ exports.create = (data, callback) => {
 };
 
 exports.update = (id, data, callback) => {
+  // Pastikan data berupa objek yang valid, dan id sesuai dengan id_judul
   db.query("UPDATE judul_ta SET ? WHERE id_judul = ?", [data, id], callback);
 };
 

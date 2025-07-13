@@ -1,60 +1,86 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../../constants/env.dart'; // baseUrl disimpan di sini
 
-class TopikCard extends StatelessWidget {
-  final String idTopik;
-  final String namaTopik;
+class AdminTopikPage extends StatefulWidget {
+  const AdminTopikPage({super.key});
 
-  const TopikCard({super.key, required this.idTopik, required this.namaTopik});
+  @override
+  State<AdminTopikPage> createState() => _AdminTopikPageState();
+}
+
+class _AdminTopikPageState extends State<AdminTopikPage> {
+  List<String> daftarTopik = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchTopikList();
+  }
+
+  Future<void> fetchTopikList() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/dashboard/stats'),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          daftarTopik = List<String>.from(data['daftar_topik']);
+          loading = false;
+        });
+      } else {
+        debugPrint("Gagal fetch data, code: ${response.statusCode}");
+        setState(() => loading = false);
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+      setState(() => loading = false);
+    }
+  }
+
+  Widget topikCardBox(String namaTopik) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.blueGrey.withAlpha(30),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Text(
+            namaTopik,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 400),
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (daftarTopik.isEmpty) {
+      return const Center(child: Text("Belum ada topik tersedia."));
+    }
+
+    return Padding(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(left: BorderSide(color: Colors.indigo, width: 4)),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text("🧠", style: TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  namaTopik,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "ID Topik: $idTopik",
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            "Topik ini merupakan bagian dari kategori Tugas Akhir mahasiswa. "
-            "Mahasiswa yang mengajukan judul biasanya memilih salah satu topik untuk fokus penelitian mereka.",
-            style: TextStyle(fontSize: 14, color: Colors.black87, height: 1.5),
-          ),
-        ],
+      child: GridView.builder(
+        itemCount: daftarTopik.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+        ),
+        itemBuilder: (context, index) {
+          return topikCardBox(daftarTopik[index]);
+        },
       ),
     );
   }
