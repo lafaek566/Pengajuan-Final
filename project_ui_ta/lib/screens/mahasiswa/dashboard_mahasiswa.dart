@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../routes/app_routes.dart';
+import './notif.dart'; // NotifikasiLonceng
 
 class DashboardMahasiswaPage extends StatefulWidget {
   const DashboardMahasiswaPage({super.key});
@@ -12,6 +13,15 @@ class DashboardMahasiswaPage extends StatefulWidget {
 
 class _DashboardMahasiswaPageState extends State<DashboardMahasiswaPage> {
   Map<String, dynamic>? user;
+  bool showNotif = false;
+
+  // 👉 Simulasi data proposal (ini bisa kamu ganti pakai API nantinya)
+  Map<String, dynamic> dataProposal = {
+    'judul_ta': 'Aplikasi TA dengan Flutter',
+    'status_persetujuan': 'Y', // bisa 'Y', 'T', atau null
+    'tgl_persetujuan': '2025-07-13T10:30:00.000Z',
+    'tgl_ujian': '2025-07-20T08:00:00.000Z',
+  };
 
   @override
   void initState() {
@@ -39,6 +49,12 @@ class _DashboardMahasiswaPageState extends State<DashboardMahasiswaPage> {
     setState(() {
       user = userData;
     });
+
+    // ✅ Cek status untuk munculkan notifikasi
+    if (dataProposal['status_persetujuan'] == 'Y' ||
+        dataProposal['status_persetujuan'] == 'T') {
+      setState(() => showNotif = true);
+    }
   }
 
   Future<void> logout() async {
@@ -77,12 +93,19 @@ class _DashboardMahasiswaPageState extends State<DashboardMahasiswaPage> {
       appBar: AppBar(
         title: const Text("Dashboard Mahasiswa"),
         backgroundColor: Colors.blue,
+        actions: [
+          NotifikasiLonceng(
+            show: showNotif,
+            proposalData: dataProposal,
+            onReset: () => setState(() => showNotif = false),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Header box
+            // Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -121,7 +144,7 @@ class _DashboardMahasiswaPageState extends State<DashboardMahasiswaPage> {
               ),
             ),
             const SizedBox(height: 20),
-            // Menu grid
+            // Menu
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
