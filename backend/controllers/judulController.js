@@ -2,6 +2,7 @@ const Judul = require("../models/JudulModel");
 const Proposal = require("../models/ProposalModel");
 const db = require("../config/db");
 const levenshtein = require("../utils/levenshtein");
+const moment = require("moment-timezone");
 
 // 🔍 Cek kemiripan judul
 exports.checkSimilarity = (req, res) => {
@@ -230,6 +231,7 @@ exports.getByNIM = (req, res) => {
       d2.nama_dosen AS nama_penguji2,
       COALESCE(t.nama_topik, jt.nama_topik) AS nama_topik,
       pr.status_persetujuan,
+      pr.tgl_persetujuan,
       ju.tgl_ujian
     FROM judul_ta jt
     LEFT JOIN mahasiswa m ON jt.nim = m.nim
