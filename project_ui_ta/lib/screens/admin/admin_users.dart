@@ -20,6 +20,8 @@ class _AdminUsersState extends State<AdminUsers> {
   final TextEditingController namaCtrl = TextEditingController();
   final TextEditingController emailCtrl = TextEditingController();
   final TextEditingController passCtrl = TextEditingController();
+  final TextEditingController nimCtrl =
+      TextEditingController(); // 👈 Tambah NIM
   String selectedLevel = "mahasiswa";
   bool editMode = false;
   String? editingId;
@@ -69,6 +71,7 @@ class _AdminUsersState extends State<AdminUsers> {
       "email": emailCtrl.text,
       "password": passCtrl.text,
       "level": selectedLevel,
+      "nim": nimCtrl.text, // 👈 Tambah NIM ke body
     };
 
     try {
@@ -140,8 +143,9 @@ class _AdminUsersState extends State<AdminUsers> {
   }
 
   void handleEdit(Map user) {
-    namaCtrl.text = user['nama'];
-    emailCtrl.text = user['email'];
+    namaCtrl.text = user['nama'] ?? '';
+    emailCtrl.text = user['email'] ?? '';
+    nimCtrl.text = user['nim'] ?? ''; // 👈 Set NIM
     passCtrl.clear();
     selectedLevel = user['level'];
     editingId = user['id_users'];
@@ -152,6 +156,7 @@ class _AdminUsersState extends State<AdminUsers> {
     namaCtrl.clear();
     emailCtrl.clear();
     passCtrl.clear();
+    nimCtrl.clear(); // 👈 Reset NIM
     selectedLevel = "mahasiswa";
     editingId = null;
     setState(() => editMode = false);
@@ -225,6 +230,18 @@ class _AdminUsersState extends State<AdminUsers> {
                             validator: (val) => val == null || val.isEmpty
                                 ? 'Wajib diisi'
                                 : null,
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: nimCtrl,
+                            decoration: const InputDecoration(labelText: "NIM"),
+                            validator: (val) {
+                              if (selectedLevel == 'mahasiswa' &&
+                                  (val == null || val.isEmpty)) {
+                                return 'NIM wajib diisi untuk mahasiswa';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 8),
                           TextFormField(
@@ -306,8 +323,6 @@ class _AdminUsersState extends State<AdminUsers> {
                   }).toList(),
                 ),
                 const SizedBox(height: 16),
-
-                // Responsive: Card list on small screen, DataTable on large screen
                 isSmallScreen
                     ? Column(
                         children: filteredUsers.map((u) {
@@ -317,7 +332,9 @@ class _AdminUsersState extends State<AdminUsers> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(u['email']),
+                                  Text("Email: ${u['email']}"),
+                                  if (u['level'] == 'mahasiswa')
+                                    Text("NIM: ${u['nim'] ?? '-'}"),
                                   getBadge(u['level']),
                                 ],
                               ),
@@ -351,15 +368,17 @@ class _AdminUsersState extends State<AdminUsers> {
                           columns: const [
                             DataColumn(label: Text("Nama")),
                             DataColumn(label: Text("Email")),
+                            DataColumn(label: Text("NIM")),
                             DataColumn(label: Text("Level")),
                             DataColumn(label: Text("Aksi")),
                           ],
                           rows: filteredUsers.map<DataRow>((u) {
                             return DataRow(
                               cells: [
-                                DataCell(Text(u['nama'])),
-                                DataCell(Text(u['email'])),
-                                DataCell(getBadge(u['level'])),
+                                DataCell(Text(u['nama'] ?? '-')),
+                                DataCell(Text(u['email'] ?? '-')),
+                                DataCell(Text(u['nim'] ?? '-')),
+                                DataCell(getBadge(u['level'] ?? '-')),
                                 DataCell(
                                   Row(
                                     children: [

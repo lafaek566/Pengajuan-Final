@@ -15,17 +15,8 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
   List<dynamic> data = [];
   List<dynamic> prodiOptions = [];
   List<dynamic> dosenOptions = [];
-  Map<String, dynamic> form = {
-    "id_judul": "",
-    "judul_ta": "",
-    "nim": "",
-    "prodi_id": "",
-    "nama_topik": "",
-    "dosen_pembimbing": "",
-    "dosen_penguji": "",
-    "dosen_penguji2": "",
-    "tahun": DateTime.now().year,
-  };
+  List<dynamic> mahasiswaOptions = [];
+  Map<String, dynamic> form = {};
   int currentPage = 1;
   final int rowsPerPage = 5;
   bool editMode = false;
@@ -37,6 +28,25 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
     fetchAll();
     fetchDosen();
     fetchProdi();
+    fetchMahasiswa();
+    resetForm();
+  }
+
+  void resetForm() {
+    setState(() {
+      form = {
+        "id_judul": "",
+        "judul_ta": "",
+        "nim": "",
+        "prodi_id": "",
+        "nama_topik": "",
+        "dosen_pembimbing": "",
+        "dosen_penguji": "",
+        "dosen_penguji2": "",
+        "tahun": DateTime.now().year.toString(),
+      };
+      editMode = false;
+    });
   }
 
   Future<void> fetchAll() async {
@@ -60,6 +70,23 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
     }
   }
 
+  Future<void> fetchMahasiswa() async {
+    final res = await http.get(Uri.parse('$baseUrl/api/mahasiswa'));
+    if (res.statusCode == 200) {
+      final List<dynamic> mhs = jsonDecode(res.body);
+      setState(() {
+        mahasiswaOptions = mhs
+            .map(
+              (m) => {
+                'nim': m['nim'],
+                'label': '${m['nama_mahasiswa']} (${m['nim']})',
+              },
+            )
+            .toList();
+      });
+    }
+  }
+
   Future<void> handleSubmit() async {
     final url = editMode
         ? '$baseUrl/api/judul/${form['id_judul']}'
@@ -77,8 +104,6 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
             headers: {"Content-Type": "application/json"},
             body: jsonEncode(form),
           ));
-
-    // print("handleSubmit: status=${res.statusCode}, body=${res.body}");
 
     if (res.statusCode == 200 || res.statusCode == 201) {
       if (!mounted) return;
@@ -113,8 +138,6 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
 
     if (confirmed == true) {
       final res = await http.delete(Uri.parse('$baseUrl/api/judul/$id'));
-      // print("handleDelete: status=${res.statusCode}, body=${res.body}");
-
       if (res.statusCode == 200) {
         fetchAll();
       } else {
@@ -128,25 +151,18 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
 
   void handleEdit(Map<String, dynamic> item) {
     setState(() {
-      form = Map<String, dynamic>.from(item);
-      editMode = true;
-    });
-  }
-
-  void resetForm() {
-    setState(() {
       form = {
-        "id_judul": "",
-        "judul_ta": "",
-        "nim": "",
-        "prodi_id": "",
-        "nama_topik": "",
-        "dosen_pembimbing": "",
-        "dosen_penguji": "",
-        "dosen_penguji2": "",
-        "tahun": DateTime.now().year,
+        "id_judul": item['id_judul'] ?? '',
+        "judul_ta": item['judul_ta'] ?? '',
+        "nim": item['nim'] ?? '',
+        "prodi_id": item['prodi_id'] ?? '',
+        "nama_topik": item['nama_topik'] ?? '',
+        "dosen_pembimbing": item['dosen_pembimbing'] ?? '',
+        "dosen_penguji": item['dosen_penguji'] ?? '',
+        "dosen_penguji2": item['dosen_penguji2'] ?? '',
+        "tahun": item['tahun'].toString(),
       };
-      editMode = false;
+      editMode = true;
     });
   }
 
@@ -159,6 +175,51 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
     (p) => p['id_prodi'] == id,
     orElse: () => {'nama_prodi': id},
   )['nama_prodi'];
+
+  Widget _input(String label, String field, {TextInputType? keyboard}) {
+    return SizedBox(
+      width: 180,
+      child: TextFormField(
+        keyboardType: keyboard,
+        initialValue: form[field],
+        onChanged: (val) => setState(() => form[field] = val),
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _dropdown(
+    String label,
+    String field,
+    List list,
+    String idField,
+    String labelField,
+  ) {
+    String? selectedValue = form[field]?.toString();
+    bool isValidValue = list.any((item) => item[idField] == selectedValue);
+    if (!isValidValue) selectedValue = null;
+
+    return SizedBox(
+      width: 180,
+      child: DropdownButtonFormField<String>(
+        value: selectedValue,
+        items: list.map<DropdownMenuItem<String>>((item) {
+          return DropdownMenuItem(
+            value: item[idField],
+            child: Text(item[labelField]),
+          );
+        }).toList(),
+        onChanged: (val) => setState(() => form[field] = val),
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +249,13 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
             runSpacing: 8,
             children: [
               _input("Judul TA", "judul_ta"),
-              _input("NIM", "nim"),
+              _dropdown(
+                "Mahasiswa (NIM)",
+                "nim",
+                mahasiswaOptions,
+                "nim",
+                "label",
+              ),
               _input("Topik", "nama_topik"),
               _dropdown(
                 "Prodi",
@@ -268,7 +335,6 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
           LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth < 700) {
-                // ✅ MOBILE MODE: Use Card
                 return Column(
                   children: paginated.map((d) {
                     return Card(
@@ -321,69 +387,54 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
                   }).toList(),
                 );
               } else {
-                // ✅ DESKTOP MODE: Use DataTable
-                return SizedBox(
-                  width: double.infinity,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 900),
-                      child: DataTable(
-                        columns: const [
-                          DataColumn(label: Text('Judul')),
-                          DataColumn(label: Text('NIM')),
-                          DataColumn(label: Text('Nama')),
-                          DataColumn(label: Text('Topik')),
-                          DataColumn(label: Text('Prodi')),
-                          DataColumn(label: Text('Pembimbing')),
-                          DataColumn(label: Text('Penguji 1')),
-                          DataColumn(label: Text('Penguji 2')),
-                          DataColumn(label: Text('Tahun')),
-                          DataColumn(label: Text('Aksi')),
-                        ],
-                        rows: paginated.map((d) {
-                          return DataRow(
-                            cells: [
-                              DataCell(Text(d['judul_ta'] ?? '-')),
-                              DataCell(Text(d['nim'] ?? '-')),
-                              DataCell(Text(d['nama_mahasiswa'] ?? '-')),
-                              DataCell(Text(d['nama_topik'] ?? '-')),
-                              DataCell(Text(getProdiName(d['prodi_id'] ?? ''))),
-                              DataCell(
-                                Text(getDosenName(d['dosen_pembimbing'] ?? '')),
+                return DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Judul')),
+                    DataColumn(label: Text('NIM')),
+                    DataColumn(label: Text('Nama')),
+                    DataColumn(label: Text('Topik')),
+                    DataColumn(label: Text('Prodi')),
+                    DataColumn(label: Text('Pembimbing')),
+                    DataColumn(label: Text('Penguji 1')),
+                    DataColumn(label: Text('Penguji 2')),
+                    DataColumn(label: Text('Tahun')),
+                    DataColumn(label: Text('Aksi')),
+                  ],
+                  rows: paginated.map((d) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(d['judul_ta'] ?? '-')),
+                        DataCell(Text(d['nim'] ?? '-')),
+                        DataCell(Text(d['nama_mahasiswa'] ?? '-')),
+                        DataCell(Text(d['nama_topik'] ?? '-')),
+                        DataCell(Text(getProdiName(d['prodi_id'] ?? ''))),
+                        DataCell(
+                          Text(getDosenName(d['dosen_pembimbing'] ?? '')),
+                        ),
+                        DataCell(Text(getDosenName(d['dosen_penguji'] ?? ''))),
+                        DataCell(Text(getDosenName(d['dosen_penguji2'] ?? ''))),
+                        DataCell(Text(d['tahun'].toString())),
+                        DataCell(
+                          Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton(
+                                onPressed: () => handleEdit(d),
+                                child: const Text("Edit"),
                               ),
-                              DataCell(
-                                Text(getDosenName(d['dosen_penguji'] ?? '')),
-                              ),
-                              DataCell(
-                                Text(getDosenName(d['dosen_penguji2'] ?? '')),
-                              ),
-                              DataCell(Text(d['tahun'].toString())),
-                              DataCell(
-                                Wrap(
-                                  spacing: 4,
-                                  children: [
-                                    TextButton(
-                                      onPressed: () => handleEdit(d),
-                                      child: const Text("Edit"),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          handleDelete(d['id_judul']),
-                                      child: const Text(
-                                        "Hapus",
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                  ],
+                              TextButton(
+                                onPressed: () => handleDelete(d['id_judul']),
+                                child: const Text(
+                                  "Hapus",
+                                  style: TextStyle(color: Colors.red),
                                 ),
                               ),
                             ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
                 );
               }
             },
@@ -391,11 +442,9 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
           const SizedBox(height: 12),
           Wrap(
             alignment: WrapAlignment.spaceBetween,
-            runSpacing: 8,
             children: [
               Text("Halaman $currentPage dari $totalPages"),
               Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   TextButton(
                     onPressed: currentPage > 1
@@ -414,51 +463,6 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _input(String label, String field, {TextInputType? keyboard}) {
-    return SizedBox(
-      width: 180,
-      child: TextFormField(
-        keyboardType: keyboard,
-        initialValue: form[field]?.toString(),
-        onChanged: (val) => setState(() => form[field] = val),
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-      ),
-    );
-  }
-
-  Widget _dropdown(
-    String label,
-    String field,
-    List list,
-    String idField,
-    String labelField,
-  ) {
-    String? selectedValue = form[field]?.toString();
-    bool isValidValue = list.any((item) => item[idField] == selectedValue);
-    if (!isValidValue) selectedValue = null;
-
-    return SizedBox(
-      width: 180,
-      child: DropdownButtonFormField<String>(
-        value: selectedValue,
-        items: list.map<DropdownMenuItem<String>>((item) {
-          return DropdownMenuItem(
-            value: item[idField],
-            child: Text(item[labelField]),
-          );
-        }).toList(),
-        onChanged: (val) => setState(() => form[field] = val),
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
       ),
     );
   }

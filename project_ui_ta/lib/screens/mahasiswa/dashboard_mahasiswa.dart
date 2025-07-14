@@ -92,15 +92,14 @@ class _DashboardMahasiswaPageState extends State<DashboardMahasiswaPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Dashboard Mahasiswa"),
-        backgroundColor: Colors.blue,
         actions: [
           NotifikasiLonceng(
-            show: showNotif,
-            proposalData: dataProposal,
-            onReset: () => setState(() => showNotif = false),
+            nim: user!['nim'],
+            onViewed: () => setState(() => showNotif = false),
           ),
         ],
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
