@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../constants/env.dart';
+import 'dart:developer' as developer;
 
 class AdminJudulPage extends StatefulWidget {
   const AdminJudulPage({super.key});
@@ -44,76 +47,209 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
         "dosen_penguji": "",
         "dosen_penguji2": "",
         "tahun": DateTime.now().year.toString(),
+        "angkatan": "", // Tambahan field angkatan
       };
       editMode = false;
     });
   }
 
   Future<void> fetchAll() async {
-    final res = await http.get(Uri.parse('$baseUrl/api/judul'));
-    if (res.statusCode == 200) {
-      setState(() => data = jsonDecode(res.body));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null) {
+        developer.log('Token tidak tersedia, fetchAll dibatalkan');
+        return;
+      }
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/judul'),
+        headers: {"Authorization": "Bearer $token"},
+      );
+      if (!mounted) return;
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        setState(() => data = decoded);
+      } else {
+        developer.log("Gagal fetchAll: ${res.statusCode} ${res.body}");
+      }
+    } catch (e) {
+      developer.log("Error fetchAll: $e");
     }
   }
 
   Future<void> fetchProdi() async {
-    final res = await http.get(Uri.parse('$baseUrl/api/prodi'));
-    if (res.statusCode == 200) {
-      setState(() => prodiOptions = jsonDecode(res.body));
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/admin/prodi'));
+      if (!mounted) return;
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        setState(() => prodiOptions = decoded);
+      } else {
+        developer.log("Gagal fetchProdi: ${res.statusCode} ${res.body}");
+      }
+    } catch (e) {
+      developer.log("Error fetchProdi: $e");
     }
   }
 
   Future<void> fetchDosen() async {
-    final res = await http.get(Uri.parse('$baseUrl/api/admin/dosen'));
-    if (res.statusCode == 200) {
-      setState(() => dosenOptions = jsonDecode(res.body));
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/admin/dosen'));
+      if (!mounted) return;
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        setState(() => dosenOptions = decoded);
+      } else {
+        developer.log("Gagal fetchDosen: ${res.statusCode} ${res.body}");
+      }
+    } catch (e) {
+      developer.log("Error fetchDosen: $e");
     }
   }
 
   Future<void> fetchMahasiswa() async {
-    final res = await http.get(Uri.parse('$baseUrl/api/mahasiswa'));
-    if (res.statusCode == 200) {
-      final List<dynamic> mhs = jsonDecode(res.body);
-      setState(() {
-        mahasiswaOptions = mhs
-            .map(
-              (m) => {
-                'nim': m['nim'],
-                'label': '${m['nama_mahasiswa']} (${m['nim']})',
-              },
-            )
-            .toList();
-      });
+    if (!mounted) return;
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/admin/mahasiswa'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      developer.log('fetchMahasiswa status: ${res.statusCode}');
+      developer.log('fetchMahasiswa body: ${res.body}');
+
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+
+        if (body is List) {
+          final filtered = body
+              .where(
+                (user) =>
+                    user is Map &&
+                    user['nim'] != null &&
+                    user['nama_mahasiswa'] != null,
+              )
+              .map(
+                (user) => {
+                  'nim': user['nim'],
+                  'nama': user['nama_mahasiswa'], // ← disesuaikan
+                  'username': user['username'] ?? '',
+                  'angkatan': user['angkatan'] ?? '-',
+                  'label': '${user['nama_mahasiswa']} (${user['nim']})',
+                },
+              )
+              .toList();
+
+          developer.log('Filtered mahasiswa: $filtered');
+          setState(() => mahasiswaOptions = filtered);
+        } else {
+          developer.log("Unexpected response format: not a List");
+        }
+      } else {
+        developer.log("Gagal fetchMahasiswa: ${res.statusCode} ${res.body}");
+      }
+    } catch (e, stackTrace) {
+      developer.log("Error fetchMahasiswa: $e", stackTrace: stackTrace);
     }
   }
 
   Future<void> handleSubmit() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (!mounted) return;
+
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Token tidak tersedia. Harap login ulang.'),
+        ),
+      );
+      return;
+    }
+
+    // Validasi form, tambah angkatan
+    final requiredFields = {
+      "judul_ta": "Judul TA",
+      "nim": "Mahasiswa",
+      "prodi_id": "Prodi",
+      "nama_topik": "Topik",
+      "dosen_pembimbing": "Dosen Pembimbing",
+      "dosen_penguji": "Dosen Penguji 1",
+      "dosen_penguji2": "Dosen Penguji 2",
+      "tahun": "Tahun",
+      "angkatan": "Angkatan", // Validasi tambahan
+    };
+
+    for (final entry in requiredFields.entries) {
+      final key = entry.key;
+      final label = entry.value;
+      final value = form[key];
+
+      developer.log("Cek field $key ($label): ${value?.toString() ?? 'null'}");
+
+      if (value == null || value.toString().trim().isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Field '$label' wajib diisi")));
+        return;
+      }
+    }
+
     final url = editMode
         ? '$baseUrl/api/judul/${form['id_judul']}'
         : '$baseUrl/api/judul';
     final method = editMode ? 'PUT' : 'POST';
 
-    final res = await (method == 'POST'
-        ? http.post(
-            Uri.parse(url),
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode(form),
-          )
-        : http.put(
-            Uri.parse(url),
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode(form),
-          ));
+    try {
+      final res = await (method == 'POST'
+          ? http.post(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer $token",
+              },
+              body: jsonEncode(form),
+            )
+          : http.put(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer $token",
+              },
+              body: jsonEncode(form),
+            ));
 
-    if (res.statusCode == 200 || res.statusCode == 201) {
       if (!mounted) return;
-      resetForm();
-      fetchAll();
-    } else {
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        resetForm();
+        await fetchAll();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              editMode ? "Data berhasil diupdate" : "Data berhasil disimpan",
+            ),
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: ${res.body}')));
+      }
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: ${res.body}')));
+      ).showSnackBar(SnackBar(content: Text('Error saat menyimpan: $e')));
     }
   }
 
@@ -136,16 +272,36 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+
+    try {
       final res = await http.delete(Uri.parse('$baseUrl/api/judul/$id'));
+
+      if (!mounted) return;
+
       if (res.statusCode == 200) {
-        fetchAll();
+        await fetchAll();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Data berhasil dihapus")));
       } else {
         if (!mounted) return;
+
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Gagal hapus: ${res.body}')));
       }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error saat menghapus: $e')));
     }
   }
 
@@ -161,9 +317,35 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
         "dosen_penguji": item['dosen_penguji'] ?? '',
         "dosen_penguji2": item['dosen_penguji2'] ?? '',
         "tahun": item['tahun'].toString(),
+        "angkatan":
+            item['angkatan']?.toString() ?? '', // isi angkatan saat edit
       };
       editMode = true;
     });
+  }
+
+  String getNamaFromNim(String nim) {
+    final m = mahasiswaOptions.firstWhere(
+      (mhs) => mhs['nim'] == nim,
+      orElse: () => {'nama': '-'},
+    );
+    return m['nama'];
+  }
+
+  String getUsernameFromNim(String nim) {
+    final m = mahasiswaOptions.firstWhere(
+      (mhs) => mhs['nim'] == nim,
+      orElse: () => {'username': '-'},
+    );
+    return m['username'];
+  }
+
+  String getAngkatanFromNim(String nim) {
+    final m = mahasiswaOptions.firstWhere(
+      (mhs) => mhs['nim'] == nim,
+      orElse: () => {'angkatan': '-'},
+    );
+    return m['angkatan'].toString();
   }
 
   String getDosenName(String id) => dosenOptions.firstWhere(
@@ -248,6 +430,7 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
             spacing: 16,
             runSpacing: 8,
             children: [
+              _input("ID Judul", "id_judul"),
               _input("Judul TA", "judul_ta"),
               _dropdown(
                 "Mahasiswa (NIM)",
@@ -286,6 +469,11 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
                 "nama_dosen",
               ),
               _input("Tahun", "tahun", keyboard: TextInputType.number),
+              _input(
+                "Angkatan",
+                "angkatan",
+                keyboard: TextInputType.number,
+              ), // input angkatan
               Row(
                 children: [
                   ElevatedButton(
@@ -335,6 +523,7 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
           LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth < 700) {
+                // Tampilan mobile (card)
                 return Column(
                   children: paginated.map((d) {
                     return Card(
@@ -351,7 +540,13 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
                               ),
                             ),
                             Text("NIM: ${d['nim'] ?? '-'}"),
-                            Text("Nama: ${d['nama_mahasiswa'] ?? '-'}"),
+                            Text("Nama: ${getNamaFromNim(d['nim'] ?? '')}"),
+                            Text(
+                              "Username: ${getUsernameFromNim(d['nim'] ?? '')}",
+                            ),
+                            Text(
+                              "Angkatan: ${getAngkatanFromNim(d['nim'] ?? '')}",
+                            ),
                             Text("Topik: ${d['nama_topik'] ?? '-'}"),
                             Text("Prodi: ${getProdiName(d['prodi_id'] ?? '')}"),
                             Text(
@@ -387,11 +582,14 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
                   }).toList(),
                 );
               } else {
+                // Tampilan desktop (datatable)
                 return DataTable(
                   columns: const [
                     DataColumn(label: Text('Judul')),
                     DataColumn(label: Text('NIM')),
                     DataColumn(label: Text('Nama')),
+                    DataColumn(label: Text('Angkatan')),
+                    DataColumn(label: Text('Username')),
                     DataColumn(label: Text('Topik')),
                     DataColumn(label: Text('Prodi')),
                     DataColumn(label: Text('Pembimbing')),
@@ -405,7 +603,11 @@ class _AdminJudulPageState extends State<AdminJudulPage> {
                       cells: [
                         DataCell(Text(d['judul_ta'] ?? '-')),
                         DataCell(Text(d['nim'] ?? '-')),
-                        DataCell(Text(d['nama_mahasiswa'] ?? '-')),
+                        DataCell(Text(getNamaFromNim(d['nim'] ?? ''))),
+                        DataCell(
+                          Text(getAngkatanFromNim(d['nim'] ?? '')),
+                        ), // angkatan di sini
+                        DataCell(Text(getUsernameFromNim(d['nim'] ?? ''))),
                         DataCell(Text(d['nama_topik'] ?? '-')),
                         DataCell(Text(getProdiName(d['prodi_id'] ?? ''))),
                         DataCell(

@@ -4,9 +4,12 @@ exports.getAllJudul = (callback) => {
   const sql = `
     SELECT 
       j.*,
-      m.nama_mahasiswa
+      m.nama_mahasiswa,
+      m.angkatan,
+      p.nama_prodi
     FROM judul_ta j
     LEFT JOIN mahasiswa m ON j.nim = m.nim
+    LEFT JOIN prodi p ON j.prodi_id = p.id_prodi
   `;
   db.query(sql, callback);
 };

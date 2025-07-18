@@ -23,7 +23,7 @@ class _FormAjukanJudulState extends State<FormAjukanJudul> {
   String topik = '';
   String prodiId = '';
   String pembimbing = '';
-  String penguji1 = '';
+  String penguji = '';
   String penguji2 = '';
   int tahun = DateTime.now().year;
 
@@ -97,9 +97,9 @@ class _FormAjukanJudulState extends State<FormAjukanJudul> {
   Future<void> handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (pembimbing == penguji1 ||
+    if (pembimbing == penguji ||
         pembimbing == penguji2 ||
-        penguji1 == penguji2) {
+        penguji == penguji2) {
       if (!mounted) return;
       showDialog(
         context: context,
@@ -168,7 +168,7 @@ class _FormAjukanJudulState extends State<FormAjukanJudul> {
       'nama_topik': topik,
       'prodi_id': prodiId,
       'dosen_pembimbing': pembimbing,
-      'dosen_penguji1': penguji1,
+      'dosen_penguji': penguji,
       'dosen_penguji2': penguji2,
       'tahun': tahun,
     };
@@ -208,7 +208,7 @@ class _FormAjukanJudulState extends State<FormAjukanJudul> {
           topik = '';
           prodiId = '';
           pembimbing = '';
-          penguji1 = '';
+          penguji = '';
           penguji2 = '';
           similarJudul = [];
         });
@@ -363,7 +363,7 @@ class _FormAjukanJudulState extends State<FormAjukanJudul> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: penguji1.isEmpty ? null : penguji1,
+                value: penguji.isEmpty ? null : penguji,
                 items: dosenList
                     .map(
                       (d) => DropdownMenuItem(
@@ -372,7 +372,7 @@ class _FormAjukanJudulState extends State<FormAjukanJudul> {
                       ),
                     )
                     .toList(),
-                onChanged: (val) => setState(() => penguji1 = val ?? ''),
+                onChanged: (val) => setState(() => penguji = val ?? ''),
                 decoration: const InputDecoration(
                   labelText: 'Dosen Penguji 1',
                   border: OutlineInputBorder(),

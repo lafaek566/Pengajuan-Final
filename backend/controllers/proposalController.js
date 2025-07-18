@@ -13,7 +13,7 @@ exports.submit = (req, res) => {
     !req.body.nama_topik ||
     !req.body.prodi_id ||
     !req.body.dosen_pembimbing ||
-    !req.body.dosen_penguji1 ||
+    !req.body.dosen_penguji ||
     !req.body.dosen_penguji2 ||
     !req.body.tahun
   ) {

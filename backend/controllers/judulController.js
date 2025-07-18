@@ -1,22 +1,19 @@
-const Judul = require("../models/JudulModel");
+const Judul = require("../models/judulModel");
 const Proposal = require("../models/ProposalModel");
 const db = require("../config/db");
 const levenshtein = require("../utils/levenshtein");
-const moment = require("moment-timezone");
 
 // 🔍 Cek kemiripan judul
 exports.checkSimilarity = (req, res) => {
   const input = req.query.q?.toLowerCase() || "";
   Judul.getAllJudul((err, results) => {
     if (err) return res.status(500).json(err);
-
     const similar = results
       .map((r) => ({
         judul: r.judul_ta,
         distance: levenshtein(input, r.judul_ta.toLowerCase()),
       }))
       .sort((a, b) => a.distance - b.distance);
-
     res.json(similar.slice(0, 5));
   });
 };
@@ -41,32 +38,52 @@ exports.getById = (req, res) => {
 // ✅ Buat judul baru
 exports.create = (req, res) => {
   const data = req.body;
-  const userId = req.user?.id_users;
-  const nimUser = req.user?.nim;
-  const namaUser = req.user?.nama;
+  const { id_users: userId, level, nim: nimUser, nama: namaUser } = req.user;
+  const nim = level === "mahasiswa" ? nimUser : data.nim || null;
+
+  const {
+    judul_ta,
+    prodi_id,
+    nama_topik,
+    dosen_pembimbing,
+    dosen_penguji,
+    dosen_penguji2,
+    tahun,
+    angkatan,
+  } = data;
 
   console.log("📥 Payload diterima:", data);
   console.log("👤 User Login:", { userId, nimUser, namaUser });
 
-  // VALIDASI
+  // ✅ Validasi field wajib
   if (
-    !data.judul_ta ||
-    !nimUser ||
-    !data.tahun ||
-    !data.nama_topik ||
-    !data.prodi_id ||
-    !data.dosen_pembimbing ||
-    !data.dosen_penguji1 ||
-    !data.dosen_penguji2 ||
-    !data.angkatan
+    !judul_ta ||
+    !prodi_id ||
+    !nama_topik ||
+    !dosen_pembimbing ||
+    !dosen_penguji ||
+    !dosen_penguji2 ||
+    !tahun ||
+    (level === "mahasiswa" && !nimUser) ||
+    (level !== "mahasiswa" && !nim)
   ) {
-    console.log("❌ Gagal: Ada field kosong");
-    return res.status(400).json({ msg: "Semua field wajib diisi." });
+    return res
+      .status(400)
+      .json({ msg: "❌ Gagal: Ada field kosong (cek NIM atau field lain)" });
   }
 
+  // ✅ Validasi khusus admin harus isi angkatan
+  if (level !== "mahasiswa" && !angkatan) {
+    return res
+      .status(400)
+      .json({ msg: "❌ Admin harus mengisi angkatan jika input NIM baru" });
+  }
+
+  // 📌 Fungsi insert Judul
   const insertJudul = () => {
     Judul.getLastId((err, result) => {
-      if (err) return res.status(500).json(err);
+      if (err)
+        return res.status(500).json({ msg: "Gagal ambil ID terakhir", err });
 
       const lastId = result[0]?.id_judul || "J-00";
       const nextId = `J-${String(parseInt(lastId.split("-")[1]) + 1).padStart(
@@ -76,14 +93,14 @@ exports.create = (req, res) => {
 
       const newJudulData = {
         id_judul: nextId,
-        judul_ta: data.judul_ta,
-        nama_topik: data.nama_topik,
-        nim: nimUser,
-        prodi_id: data.prodi_id,
-        dosen_pembimbing: data.dosen_pembimbing,
-        dosen_penguji: data.dosen_penguji1,
-        dosen_penguji2: data.dosen_penguji2,
-        tahun: data.tahun,
+        judul_ta,
+        nama_topik,
+        nim,
+        prodi_id,
+        dosen_pembimbing,
+        dosen_penguji,
+        dosen_penguji2,
+        tahun,
       };
 
       console.log("📌 Data akan dimasukkan ke tabel `judul`:", newJudulData);
@@ -95,14 +112,12 @@ exports.create = (req, res) => {
         }
 
         const proposalData = {
-          nim: nimUser,
-          dosen: data.dosen_pembimbing,
-          tahun: data.tahun,
+          nim,
+          dosen: dosen_pembimbing,
+          tahun,
           tgl_pengajuan: new Date(),
           id_judul: nextId,
         };
-
-        console.log("📌 Data Proposal:", proposalData);
 
         Proposal.insertProposal(proposalData, (err3) => {
           if (err3) {
@@ -111,38 +126,47 @@ exports.create = (req, res) => {
               .status(500)
               .json({ msg: "Judul OK, proposal gagal", err: err3 });
           }
-          console.log("✅ Judul & Proposal berhasil ditambahkan.");
+
           res
             .status(201)
-            .json({ msg: "Judul & Proposal berhasil dibuat", id: nextId });
+            .json({ msg: "✅ Judul & Proposal berhasil dibuat", id: nextId });
         });
       });
     });
   };
 
-  // CEK MAHASISWA
-  db.query("SELECT * FROM mahasiswa WHERE nim = ?", [nimUser], (err, rows) => {
-    if (err) return res.status(500).json(err);
+  // 🔍 Cek apakah mahasiswa sudah ada
+  db.query("SELECT * FROM mahasiswa WHERE nim = ?", [nim], (err, rows) => {
+    if (err) {
+      console.error("❌ DB error saat cek mahasiswa:", err);
+      return res.status(500).json({ msg: "Gagal cek mahasiswa", err });
+    }
 
     if (rows.length === 0) {
-      console.log("📥 Mahasiswa baru, akan dimasukkan");
-
+      // 👤 Mahasiswa baru
       const idMahasiswa = `M-${Date.now()}`;
       db.query(
         "INSERT INTO mahasiswa (id_mahasiswa, nim, nama_mahasiswa, angkatan, id_users) VALUES (?, ?, ?, ?, ?)",
-        [idMahasiswa, nimUser, namaUser, data.angkatan, userId || null],
+        [idMahasiswa, nim, namaUser, angkatan, userId || null],
         (err2) => {
-          if (err2) return res.status(500).json(err2);
+          if (err2) {
+            console.error("❌ Gagal insert mahasiswa:", err2);
+            return res
+              .status(500)
+              .json({ msg: "Gagal insert mahasiswa", err: err2 });
+          }
 
           if (userId) {
             db.query(
               "UPDATE users SET nim = ? WHERE id_users = ?",
-              [nimUser, userId],
+              [nim, userId],
               (err3) => {
-                if (err3)
+                if (err3) {
+                  console.error("❌ Gagal update users:", err3);
                   return res
                     .status(500)
                     .json({ msg: "Gagal update users", err: err3 });
+                }
                 insertJudul();
               }
             );
@@ -152,25 +176,29 @@ exports.create = (req, res) => {
         }
       );
     } else {
-      console.log("ℹ️ Mahasiswa sudah ada.");
+      // 🧾 Mahasiswa sudah ada
       if (userId) {
         db.query(
           "UPDATE mahasiswa SET id_users = ? WHERE nim = ? AND (id_users IS NULL OR id_users = '')",
-          [userId, nimUser],
+          [userId, nim],
           (err3) => {
-            if (err3)
+            if (err3) {
+              console.error("❌ Gagal update mahasiswa:", err3);
               return res
                 .status(500)
                 .json({ msg: "Gagal update mahasiswa", err: err3 });
+            }
 
             db.query(
               "UPDATE users SET nim = ? WHERE id_users = ?",
-              [nimUser, userId],
+              [nim, userId],
               (err4) => {
-                if (err4)
+                if (err4) {
+                  console.error("❌ Gagal update users:", err4);
                   return res
                     .status(500)
                     .json({ msg: "Gagal update users", err: err4 });
+                }
                 insertJudul();
               }
             );
@@ -183,7 +211,7 @@ exports.create = (req, res) => {
   });
 };
 
-// Update judul
+// ✅ Update judul
 exports.update = (req, res) => {
   const allowedFields = [
     "nama_topik",
@@ -209,64 +237,16 @@ exports.update = (req, res) => {
       return res.status(500).json({ error: err.message || err });
     }
     res.json({ msg: "Judul berhasil diupdate" });
-  });
-};
-
-// Hapus judul
-exports.remove = (req, res) => {
-  Judul.remove(req.params.id, (err) => {
-    if (err) {
-      console.error("❌ Remove error:", err);
-      return res.status(500).json({ error: err.message || err });
-    }
-    res.json({ msg: "Judul berhasil dihapus" });
-  });
-};
-
-// Update judul
-exports.update = (req, res) => {
-  const allowedFields = [
-    "nama_topik",
-    "judul_ta",
-    "nim",
-    "prodi_id",
-    "dosen_pembimbing",
-    "dosen_penguji",
-    "dosen_penguji2",
-    "tahun",
-  ];
-
-  const dataToUpdate = {};
-  allowedFields.forEach((key) => {
-    if (req.body[key] !== undefined) {
-      dataToUpdate[key] = req.body[key];
-    }
-  });
-
-  Judul.update(req.params.id, dataToUpdate, (err) => {
-    if (err) {
-      console.error("❌ Update error:", err);
-      return res.status(500).json({ error: err.message || err });
-    }
-    res.json({ msg: "Judul berhasil diupdate" });
-  });
-};
-
-// Hapus judul
-exports.remove = (req, res) => {
-  Judul.remove(req.params.id, (err) => {
-    if (err) {
-      console.error("❌ Remove error:", err);
-      return res.status(500).json({ error: err.message || err });
-    }
-    res.json({ msg: "Judul berhasil dihapus" });
   });
 };
 
 // ✅ Hapus judul
 exports.remove = (req, res) => {
   Judul.remove(req.params.id, (err) => {
-    if (err) return res.status(500).json(err);
+    if (err) {
+      console.error("❌ Remove error:", err);
+      return res.status(500).json({ error: err.message || err });
+    }
     res.json({ msg: "Judul berhasil dihapus" });
   });
 };
@@ -308,7 +288,7 @@ exports.getByNIM = (req, res) => {
   });
 };
 
-// ✅ Ambil semua judul + status
+// ✅ Ambil semua judul + status lengkap
 exports.getAllWithStatus = (req, res) => {
   const sql = `
     SELECT 

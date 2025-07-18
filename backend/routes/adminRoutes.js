@@ -4,6 +4,7 @@ const router = express.Router();
 const DosenController = require("../controllers/DosenController");
 const TopikController = require("../controllers/TopikController");
 const ProdiController = require("../controllers/ProdiController");
+const MahasiswaController = require("../controllers/mahasiswaController");
 
 // Dosen
 router.get("/dosen", DosenController.getAll);
@@ -24,5 +25,8 @@ router.put("/prodi/:id", ProdiController.update);
 router.delete("/prodi/:id", ProdiController.remove);
 
 router.get("/dosen/peran/:peran", DosenController.getByPeran);
+
+// Mahasiswa
+router.get("/mahasiswa", MahasiswaController.getAllMahasiswa);
 
 module.exports = router;
