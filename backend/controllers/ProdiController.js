@@ -1,5 +1,6 @@
 const Prodi = require("../models/ProdiModel");
 
+//get all data
 exports.getAll = (req, res) => {
   Prodi.getAll((err, results) => {
     if (err) return res.status(500).json(err);
